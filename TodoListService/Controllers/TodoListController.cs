@@ -28,7 +28,7 @@ using System.Security.Claims;
 
 namespace TodoListService.Controllers
 {
-    [Authorize]
+    // TODO: Protect the TodoListController with JWT Bearer Authentication.
     public class TodoListController : ApiController
     {
         //
@@ -39,14 +39,7 @@ namespace TodoListService.Controllers
         // GET api/todolist
         public IEnumerable<TodoItem> Get()
         {
-            //
-            // The Scope claim tells you what permissions the client application has in the service.
-            // In this case we look for a scope value of user_impersonation, or full access to the service as the user.
-            //
-            if (ClaimsPrincipal.Current.FindFirst("http://schemas.microsoft.com/identity/claims/scope").Value != "user_impersonation")
-            {
-                throw new HttpResponseException(new HttpResponseMessage { StatusCode = HttpStatusCode.Unauthorized, ReasonPhrase = "The Scope claim does not contain 'user_impersonation' or scope claim not found" });
-            }
+            // TODO: Verify that the "user_impersonation" scope exists in the token.
 
             // A user's To Do list is keyed off of the NameIdentifier claim, which contains an immutable, unique identifier for the user.
             Claim subject = ClaimsPrincipal.Current.FindFirst(ClaimTypes.NameIdentifier);
