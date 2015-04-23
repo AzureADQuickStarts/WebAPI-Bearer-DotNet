@@ -1,45 +1,47 @@
-# Web App Sign In & Sign Out with Azure AD
+# Protect a Web API using Bearer tokens from Azure AD
 
-Azure AD makes it simple and straightforward to outsource your web appís identity management, providing single sign-in and sign-out with only a few lines of code.  In Asp.NET web apps, you can accomplish this using Microsoftís implementation of the community-driven OWIN middleware included in .NET Framework 4.5.  Here weíll use OWIN to:
--	Sign the user into the app using Azure AD as the identity provider.
--	Display some information about the user.
--	Sign the user out of the app.
+If you‚Äôre building an application that provides access to protected resources you will need to know how to protect those resources from unwarranted access.
+Azure AD makes it simple and straightforward to protect a web API using OAuth Bearer 2.0 Access Tokens with only a few lines of code.
 
-In order to do this, youíll need to:
+In Asp.NET web apps, you can accomplish this using Microsoft‚Äôs implementation of the community-driven OWIN middleware included in .NET Framework 4.5.  Here we‚Äôll use OWIN to build a "To Do List" web API that:
+-	Designates which API's are protected.
+-	Validates that the Web API calls contain a valid Access Token.
+
+In order to do this, you‚Äôll need to:
 
 1. Register an application with Azure AD
 2. Set up your app to use the OWIN authentication pipeline.
-3. Use OWIN to issue sign-in and sign-out requests to Azure AD.
-4. Print out data about the user.
+3. Configure a client application to call the To Do List Web API
 
-To get started, [download the app skeleton](https://github.com/AzureAdSamples/Getting-Started-Tutorials/DotNet/WebApp-OpenIDConnect-DotNet/Skeleton) or [download the completed sample](https://github.com/AzureAdSamples/Getting-Started-Tutorials/DotNet/WebApp-OpenIDConnect-DotNet/Complete).  You'll also need an Azure AD tenant in which to register your application.  If you don't have one already, [learn how to get one]().
+To get started, [download the app skeleton](https://github.com/AzureAdQuickStarts/WebAPI-Bearer-DotNet/Skeleton) or [download the completed sample](https://github.com/AzureAdQuickStarts/WebApp-OpenIDConnect-DotNet/Complete).  Each is a Visual Studio 2013 solution.  You'll also need an Azure AD tenant in which to register your application.  If you don't have one already, [learn how to get one]().
+
 
 ## *1.	Register an Application with Azure AD*
-To enable your app to authenticate users, you'll first need to register a new application in your tenant.
+To secure your application, you‚Äôll first need to create an application in your tenant and provide Azure AD with a few key pieces of information.
 
-- Sign into the Azure Management Portal.
-- In the left hand nav, click on **Active Directory**.
-- Select the tenant where you wish to register the application.
-- Click the **Applications** tab, and click add in the bottom drawer.
-- Follow the prompts and create a new **Web Application and/or WebAPI**.
-    - The **name** of the application will describe your application to end-users
-    -	The **Sign-On URL** is the base URL of your app.  The skeletonís default is `https://localhost:44320/`.
-    - The **App ID URI** is a unique identifier for your application.  The convention is to use `https://<tenant-domain>/<app-name>`, e.g. `https://contoso.onmicrosoft.com/my-first-aad-app`
-- Once youíve completed registration, AAD will assign your app a unique client identifier.  Youíll need this value in the next sections, so copy it from the Configure tab.
+-	Sign into the [Azure Management Portal](https://manage.windowsazure.com)
+-	In the left hand nav, click on **Active Directory**
+-	Select a tenant in which to register the application.
+-	Click the **Applications** tab, and click **Add** in the bottom drawer.
+-	Follow the prompts and create a new **Web Application and/or WebAPI**.
+    -	The **Name** of the application will describe your application to end-users.  Enter "To Do List Service".
+    -	The **Redirect Uri** is a scheme and string combination that Azure AD would use to return any tokens your app requested. Enter `https://localhost:44321/` for this value.
+-	Once you‚Äôve completed registration, navigate to **Configure** tab and locate the **App ID URI** field.  Enter a tenant-specific identifier for this value, e.g. `https://contoso.onmicrosoft.com/TodoListService`
+- Save the configuration.  Leave the portal open - you'll also need to register your client application shortly.
 
 ## *2. Set up your app to use the OWIN authentication pipeline*
-Here, weíll configure the OWIN middleware to use the OpenID Connect authentication protocol.  OWIN will be used to issue sign-in and sign-out requests, manage the userís session, and get information about the user, amongst other things.
 
--	To begin, add the OWIN middleware NuGet packages to the project using the Package Manager Console.
+Now that you‚Äôve registered an application with Azure AD, you need to set up your application to communicate with Azure AD in order to validate incoming requests & tokens.
+
+-	To begin, open the solution and add the OWIN middleware NuGet packages to the TodoListService project using the Package Manager Console.
 
 ```
-PM> Install-Package Microsoft.Owin.Security.OpenIdConnect
-PM> Install-Package Microsoft.Owin.Security.Cookies
-PM> Install-Package Microsoft.Owin.Host.SystemWeb
+PM> Install-Package Microsoft.Owin.Security.ActiveDirectory -ProjectName TodoListService
+PM> Install-Package Microsoft.Owin.Host.SystemWeb -ProjectName TodoListService
 ```
 
--	Add an OWIN Startup class to the project called `Startup.cs`  Right click on the project --> **Add** --> **New Item** --> Search for ìOWINî.  The OWIN middleware will invoke the `Configuration(Ö)` method when your app starts.
--	Change the class declaration to `public partial class Startup` - weíve already implemented part of this class for you in another file.  In the `Configuration(Ö)` method, make a call to ConfgureAuth(Ö) to set up authentication for your web app  
+-	Add an OWIN Startup class to the TodoListService project called `Startup.cs`.  Right click on the project --> **Add** --> **New Item** --> Search for ‚ÄúOWIN‚Äù.  The OWIN middleware will invoke the `Configuration(‚Ä¶)` method when your app starts.
+-	Change the class declaration to `public partial class Startup` - we‚Äôve already implemented part of this class for you in another file.  In the `Configuration(‚Ä¶)` method, make a call to ConfgureAuth(‚Ä¶) to set up authentication for your web app.
 
 ```C#
 public partial class Startup
@@ -51,108 +53,72 @@ public partial class Startup
 }
 ```
 
--	Open the file `App_Start\Startup.Auth.cs` and implement the `ConfigureAuth(Ö)` method.  The parameters you provide in `OpenIDConnectAuthenticationOptions` will serve as coordinates for your app to communicate with Azure AD.  Youíll also need to set up Cookie Authentication ñ the OpenID Connect middleware uses cookies underneath the covers.
+-	Open the file `App_Start\Startup.Auth.cs` and implement the `ConfigureAuth(‚Ä¶)` method.  The parameters you provide in `WindowsAzureActiveDirectoryBearerAuthenticationOptions` will serve as coordinates for your app to communicate with Azure AD.
 
 ```C#
 public void ConfigureAuth(IAppBuilder app)
 {
-    app.SetDefaultSignInAsAuthenticationType(CookieAuthenticationDefaults.AuthenticationType);
-
-    app.UseCookieAuthentication(new CookieAuthenticationOptions());
-
-    app.UseOpenIdConnectAuthentication(
-        new OpenIdConnectAuthenticationOptions
+    app.UseWindowsAzureActiveDirectoryBearerAuthentication(
+        new WindowsAzureActiveDirectoryBearerAuthenticationOptions
         {
-            ClientId = clientId,
-            Authority = authority,
-            PostLogoutRedirectUri = postLogoutRedirectUri,
+            Audience = ConfigurationManager.AppSettings["ida:Audience"],
+            Tenant = ConfigurationManager.AppSettings["ida:Tenant"]
         });
 }
 ```
 
--	Finally, open the `web.config` file in the root of the project, and enter your configuration values in the `<appSettings>` section.
-    -	Your appís `ida:ClientId` is the Guid you copied from the Azure Portal in Step 1.
-    -	The `ida:Tenant` is the name of your Azure AD tenant, e.g. "contoso.onmicrosoft.com".
-    -	Your `ida:PostLogoutRedirectUri` indicates to Azure AD where a user should be redirected after a sign-out request successfully completes.
-
-## *3. Use OWIN to issue sign-in and sign-out requests to Azure AD*
-Your app is now properly configured to communicate with Azure AD using the OpenID Connect authentication protocol.  OWIN has taken care of all of the ugly details of crafting authentication messages, validating tokens from Azure AD, and maintaining user session.  All that remains is to give your users a way to sign in and sign out.
-
-- You can use authorize tags in your controllers to require that user signs in before accessing a certain page.  Open `Controllers\HomeController.cs`, and add the `[Authorize]` tag to the About controller.
+-	Now you can use `[Authorize]` attributes to protect your controllers and actions with JWT bearer authentication.  Decorate the `Controllers\TodoListController.cs` class with an authorize tag.  This will force the user to sign in before accessing that page.
 
 ```C#
 [Authorize]
-public ActionResult About()
+public class TodoListController : ApiController
 {
-  ...
 ```
 
--	You can also use OWIN to directly issue authentication requests from within your code.  Open `Controllers\AccountController.cs`.  In the SignIn() and SignOut() actions, issue OpenID Connect challenge and sign-out requests, respectively.
+- When an authorized caller successfully invokes one of the `TodoListController` APIs, the action might need access to information about the caller.  OWIN provides access to the claims inside the bearer token via the `ClaimsPrincpal` object.  
+- A common requirement for web APIs is to validate the "scopes" present in the token - this ensures that the end user has consented to the permissions required to access the Todo List Service:
 
 ```C#
-public void SignIn()
+public IEnumerable<TodoItem> Get()
 {
-    // Send an OpenID Connect sign-in request.
-    if (!Request.IsAuthenticated)
+    // user_impersonation is the default permission exposed by applications in AAD
+    if (ClaimsPrincipal.Current.FindFirst("http://schemas.microsoft.com/identity/claims/scope").Value != "user_impersonation")
     {
-        HttpContext.GetOwinContext().Authentication.Challenge(new AuthenticationProperties { RedirectUri = "/" }, OpenIdConnectAuthenticationDefaults.AuthenticationType);
+        throw new HttpResponseException(new HttpResponseMessage {
+          StatusCode = HttpStatusCode.Unauthorized,
+          ReasonPhrase = "The Scope claim does not contain 'user_impersonation' or scope claim not found"
+        });
     }
-}
-public void SignOut()
-{
-    // Send an OpenID Connect sign-out request.
-    HttpContext.GetOwinContext().Authentication.SignOut(
-        OpenIdConnectAuthenticationDefaults.AuthenticationType, CookieAuthenticationDefaults.AuthenticationType);
+    ...
 }
 ```
 
--	Now, open `Views\Shared\_LoginPartial.cshtml`.  This is where youíll show the user your appís sign-in and sign-out links, and print out the user's name in a view.
+-	Finally, open the `web.config` file in the root of the TodoListService project, and enter your configuration values in the `<appSettings>` section.
+  -	The `ida:Tenant` is the name of your Azure AD tenant, e.g. "contoso.onmicrosoft.com".
+  -	Your `ida:Audience` is the App ID URI of the application that you entered in the Azure Portal.
 
-```HTML
-@if (Request.IsAuthenticated)
-{
-    <text>
-        <ul class="nav navbar-nav navbar-right">
-            <li class="navbar-text">
-                Hello, @User.Identity.Name!
-            </li>
-            <li>
-                @Html.ActionLink("Sign out", "SignOut", "Account")
-            </li>
-        </ul>
-    </text>
-}
-else
-{
-    <ul class="nav navbar-nav navbar-right">
-        <li>@Html.ActionLink("Sign in", "SignIn", "Account", routeValues: null, htmlAttributes: new { id = "loginLink" })</li>
-    </ul>
-}
-```
+## *3.	Configure a client application & Run the service*
+Before you can see the Todo List Service in action, you need to configure the Todo List Client so it can get tokens from AAD and make calls to the service.
 
-## *4.	Display user information*
-When authenticating users with OpenID Connect, Azure AD returns an id_token to the application that contains "claims," or assertions about the user.  You can use these claims to personalize your app:
+- Navigate back to the [Azure Management Portal](https://manage.windowsazure.com)
+- Create a new application in your Azure AD tenant, and select **Native Client Application** in the resulting prompt.
+    -	The **Name** of the application will describe your application to end-users
+    -	Enter `http://TodoListClient/` for the **Redirect Uri** value.
+- Once you‚Äôve completed registration, AAD will assign your app a unique **App Id**. You‚Äôll need this value in the next steps, so copy it from the Configure tab.
+-	Once you‚Äôve completed registration, navigate to **Configure** tab and locate the **App ID URI** field.  Enter a tenant-specific identifier for this value, e.g. `https://contoso.onmicrosoft.com/TodoListService`
+- Also in **Configure** tab, locate the "Permissions to Other Applications" section. Click "Add Application." Select "Other" in the "Show" dropdown, and click the upper check mark. Locate & click on your To Do List Service, and click the bottom check mark to add the application. Select "Access To Do List Service" from the "Delegated Permissions" dropdown, and save the configuration.
 
-- Open the `Controllers\HomeController.cs` file.  You can access the user's claims in your controllers via the `ClaimsPrincipal.Current` security principal object.
 
-```C#
-public ActionResult About()
-{
-    ViewBag.Name = ClaimsPrincipal.Current.FindFirst(ClaimTypes.Name).Value;
-    ViewBag.ObjectId = ClaimsPrincipal.Current.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier").Value;
-    ViewBag.GivenName = ClaimsPrincipal.Current.FindFirst(ClaimTypes.GivenName).Value;
-    ViewBag.Surname = ClaimsPrincipal.Current.FindFirst(ClaimTypes.Surname).Value;
-    ViewBag.UPN = ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn).Value;
+- In Visual Studio, open `App.config` in the TodoListClient project and enter your configuration values in the `<appSettings>` section.
+  -	The `ida:Tenant` is the name of your Azure AD tenant, e.g. "contoso.onmicrosoft.com".
+  -	Your `ida:ClientId` app ID you copied from the Azure Portal.
+  -	Your `todo:TodoListResourceId` is the App ID URI of the To Do List Service application that you entered in the Azure Portal.
 
-    return View();
-}
-```
+Finally, clean, build and run each project!  If you haven‚Äôt already, now is the time to create a new user in your tenant with a *.onmicrosoft.com domain.  Sign in to the To Do List client with that user, and add some tasks to the user's To Do List.
 
-Finally, build and run your app!  If you havenít already, now is the time to create a new user in your tenant with a *.onmicrosoft.com domain.  Sign in with that user, and notice how the userís identity is reflected in the top navigation bar.  Sign out, and sign back in as another user in your tenant.  If youíre feeling particularly ambitious, register and run another instance of this application (with its own clientId), and watch see single-sign on in action.
+For reference, the completed sample (without your configuration values) is provided [here](https://github.com/AzureAdQuickStarts/WebApp-OpenIDConnect-DotNet/Complete).  You can now move on to more advanced identity scenarios  You may want to try:
 
-For reference, the completed sample (without your configuration values) [is provided here](https://github.com/AzureAdSamples/Getting-Started-Tutorials/DotNet/WebApp-OpenIDConnect-DotNet/Completed).  
-
-You can now move onto more advanced topics.  You may want to try: [Secure a Web API with Azure AD >>](/DotNet/WebAPI-Bearer-DotNet/README.md)
+[Build a Multi-Tenant Web API with Azure AD >>]()
 
 For additional resources, check out:
 - [AzureADSamples on GitHub >>](https://github.com/AzureAdSamples)
